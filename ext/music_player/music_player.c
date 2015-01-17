@@ -35,6 +35,8 @@ static VALUE rb_cMIDIChannelPressureMessage;
 static VALUE rb_cMIDIPitchBendMessage;
 static VALUE rb_cExtendedTempoEvent;
 static VALUE rb_cMusicEventIterator;
+static VALUE rb_cAUGraph;
+static VALUE rb_cAudioUnit;
 
 /* Ruby symbols */
 static VALUE rb_sBeat;
@@ -421,6 +423,23 @@ sequence_load (VALUE self, VALUE rb_path)
     RAISE_OSSTATUS(err, "MusicSequenceFileLoad()");
 }
 
+static VALUE
+sequence_get_augraph(VALUE self)
+{
+    MusicSequence *seq;
+    AUGraph *graph;
+    OSStatus err;
+    VALUE outGraph;
+    
+    Data_Get_Struct(self, MusicSequence, seq);
+    outGraph = Data_Make_Struct(rb_cAUGraph, AUGraph, 0, DisposeAUGraph, graph);
+    __Require_noErr (err = MusicSequenceGetAUGraph(*seq, graph), fail);
+    return outGraph;
+
+fail:
+    RAISE_OSSTATUS(err, "MusicSequenceGetAUGraph()");
+}
+
 /* Track defns */
 
 static void
@@ -486,6 +505,46 @@ track_new (int argc, VALUE *argv, VALUE class)
 
     fail:
     RAISE_OSSTATUS(err, "MusicSequenceNewTrack()");
+}
+
+static VALUE
+track_play_midi_event(VALUE self, VALUE message)
+{
+    MusicTrack *track;
+    MusicSequence seq;
+    AUGraph graph;
+    unsigned int count;
+    AUNode node;
+    AudioComponentDescription desc;
+    int i;
+    AudioUnit *synthUnit;
+    OSStatus err;
+    VALUE status, data1, data2;
+    VALUE synth;
+
+    Data_Get_Struct(self, MusicTrack, track);
+    __Require_noErr(err = MusicTrackGetSequence(*track, &seq), fail);
+    __Require_noErr(err = MusicSequenceGetAUGraph(seq, &graph), fail);
+    __Require_noErr(err = AUGraphGetNodeCount(graph, &count), fail);
+    synth = Data_Make_Struct(rb_cAudioUnit, AudioUnit, 0, 0, synthUnit);
+    for ( i = 0; i < count; i++) {
+        __Require_noErr(err = AUGraphGetIndNode(graph, i, &node), fail);
+        __Require_noErr(err = AUGraphNodeInfo(graph, node, &desc, synthUnit), fail);
+        if (desc.componentType == kAudioUnitType_MusicDevice &&
+            desc.componentSubType == kAudioUnitSubType_DLSSynth) break;
+    }
+    if ( i < count ) {
+        status = rb_iv_get(message, "@status");
+        data1 = rb_iv_get(message, "@data1");
+        data2 = rb_iv_get(message, "@data2");
+        __Require_noErr(err = MusicDeviceMIDIEvent(*synthUnit,
+                         status, data1, data2,
+                         0/*sample offset*/), fail);
+        return synth;
+    }
+
+fail:
+    RAISE_OSSTATUS(err, "MusicDeviceMIDIEvent()");
 }
 
 static VALUE
@@ -1299,6 +1358,71 @@ iter_delete_event (VALUE self)
     RAISE_OSSTATUS(err, "MusicEventIteratorDeleteEvent()");
 }
 
+static VALUE
+graph_open(VALUE self)
+{
+    AUGraph *graph;
+    OSStatus err;
+
+    Data_Get_Struct(self, AUGraph, graph);
+    __Require_noErr(err = AUGraphOpen(*graph), fail);
+    return self;
+fail:
+    RAISE_OSSTATUS(err, "AUGraphOpen");
+}
+
+static VALUE
+graph_close(VALUE self)
+{
+    AUGraph *graph;
+    OSStatus err;
+
+    Data_Get_Struct(self, AUGraph, graph);
+    __Require_noErr(err = AUGraphClose(*graph), fail);
+    return self;
+fail:
+    RAISE_OSSTATUS(err, "AUGraphClose");
+}
+
+static VALUE
+graph_init(VALUE self)
+{
+    AUGraph *graph;
+    OSStatus err;
+
+    Data_Get_Struct(self, AUGraph, graph);
+    __Require_noErr(err = AUGraphInitialize(*graph), fail);
+    return self;
+fail:
+    RAISE_OSSTATUS(err, "AUGraphInitialze");
+}
+
+static VALUE
+graph_start(VALUE self)
+{
+    AUGraph *graph;
+    OSStatus err;
+
+    Data_Get_Struct(self, AUGraph, graph);
+    __Require_noErr(err = AUGraphStart(*graph), fail);
+    return Qnil;
+fail:
+    RAISE_OSSTATUS(err, "AUGraphStart");
+}
+
+static VALUE
+graph_stop(VALUE self)
+{
+    AUGraph *graph;
+    OSStatus err;
+
+    Data_Get_Struct(self, AUGraph, graph);
+    __Require_noErr(err = AUGraphStop(*graph), fail);
+    return Qnil;
+fail:
+    RAISE_OSSTATUS(err, "AUGraphStop");
+}
+
 /* Initialize extension */
 
 void
@@ -1349,11 +1473,13 @@ Init_music_player ()
     rb_define_method(rb_cMusicSequence, "type", sequence_get_type, 0);
     rb_define_method(rb_cMusicSequence, "type=", sequence_set_type, 1);
     rb_define_method(rb_cMusicSequence, "save", sequence_save, 1);
-    
+    rb_define_method(rb_cMusicSequence, "auGraph", sequence_get_augraph, 0);
+
     /* AudioToolbox::MusicTrack */
     rb_cMusicTrack = rb_define_class_under(rb_mAudioToolbox, "MusicTrack", rb_cObject);
     rb_define_singleton_method(rb_cMusicTrack, "new", track_new, -1);
     rb_define_method(rb_cMusicTrack, "initialize", track_init, -1);
+    rb_define_method(rb_cMusicTrack, "play_midi_event", track_play_midi_event, 1);
     rb_define_method(rb_cMusicTrack, "add_midi_note_message", track_add_midi_note_message, 2);
     rb_define_method(rb_cMusicTrack, "add_midi_channel_message", track_add_midi_channel_message, 2);
     rb_define_method(rb_cMusicTrack, "add_extended_tempo_event", track_add_extended_tempo_event, 2);
@@ -1418,6 +1544,15 @@ Init_music_player ()
     rb_define_method(rb_cMusicEventIterator, "event", iter_get_event, 0);
     rb_define_method(rb_cMusicEventIterator, "event=", iter_set_event, 1);
     rb_define_method(rb_cMusicEventIterator, "delete", iter_delete_event, 0);
+    
+    rb_cAUGraph = rb_define_class_under(rb_mAudioToolbox, "AUGraph", rb_cObject);
+    rb_define_method(rb_cAUGraph, "init", graph_init, 0);
+    rb_define_method(rb_cAUGraph, "open", graph_open, 0);
+    rb_define_method(rb_cAUGraph, "close", graph_close, 0);
+    rb_define_method(rb_cAUGraph, "start", graph_start, 0);
+    rb_define_method(rb_cAUGraph, "stop", graph_stop, 0);
+
+    rb_cAudioUnit = rb_define_class_under(rb_mAudioToolbox, "AudioUnit", rb_cObject);
     
     /* Symbols */
     rb_sBeat = CSTR2SYM("beat");

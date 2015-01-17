@@ -11,6 +11,14 @@ module AudioToolbox
         load_internal(path)
       end
     end
+
+=begin
+Defined in "music_player.c"
+    def auGraph
+        self.sequence_get_augraph
+    end
+=end
+
   end
   
   class MusicTrackCollection
@@ -63,6 +71,10 @@ module AudioToolbox
     
     def add(time, message)
       message.add(time, self)
+    end
+
+    def play(message)
+        self.play_midi_event(message)
     end
     
     def iterator
@@ -213,4 +225,15 @@ module AudioToolbox
       bpm        == other.bpm
     end
   end
+
+    class AUGraph
+=begin
+# defined in music_player.c
+        def start
+        end
+        
+        def stop
+        end
+=end
+ end
 end
