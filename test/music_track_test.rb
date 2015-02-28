@@ -90,12 +90,5 @@ class MusicTrackTest < Test::Unit::TestCase
     assert_equal 10, track.length
   end
   
-  def test_play
-      @player = MusicPlayer.new
-      @sequence.auGraph.open.init.start
-      assert_nothing_raised { @track.play MIDINoteMessage.new(:note => 60, :duration => 1) }
-      @sequence.auGraph.stop
-  end
-  
   
 end
