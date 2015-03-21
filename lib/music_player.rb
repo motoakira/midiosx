@@ -236,4 +236,8 @@ Defined in "music_player.c"
         end
 =end
  end
+
+    class MusicDevice
+        
+    end
 end

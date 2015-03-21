@@ -7,7 +7,8 @@
 
 #include <ruby.h>
 #include "util.h"
-#include <AudioToolbox/MusicPlayer.h>
+#include <AudioToolbox/AudioToolbox.h>
+#include <AudioUnit/AudioUnit.h>
 #include <CoreMIDI/MIDIServices.h>
 
 /* Ruby type decls */
@@ -538,8 +539,8 @@ track_play_midi_event(VALUE self, VALUE message)
         data1 = rb_iv_get(message, "@data1");
         data2 = rb_iv_get(message, "@data2");
         __Require_noErr(err = MusicDeviceMIDIEvent(*synthUnit,
-                         status, data1, data2,
-                         0/*sample offset*/), fail);
+                         status, data1, data2, 0/*sample offset*/),
+                        fail);
         return synth;
     }
 
