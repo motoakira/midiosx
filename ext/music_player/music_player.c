@@ -28,6 +28,8 @@ static VALUE rb_cMusicSequence;
 static VALUE rb_cMusicTrack;
 static VALUE rb_cMusicTrackCollection;
 static VALUE rb_cMIDINoteMessage;
+static VALUE rb_cMIDINoteOnMessage;
+static VALUE rb_cMIDINoteOffMessage;
 static VALUE rb_cMIDIChannelMessage;
 static VALUE rb_cMIDIKeyPressureMessage;
 static VALUE rb_cMIDIControlChangeMessage;
@@ -60,6 +62,13 @@ static VALUE rb_sSolo;
 static VALUE rb_sStatus;
 static VALUE rb_sValue;
 static VALUE rb_sVelocity;
+
+static VALUE midi_note_message_status(VALUE self);
+static VALUE midi_note_message_data1(VALUE self);
+static VALUE midi_note_message_data2(VALUE self);
+static VALUE midi_channel_message_status(VALUE self);
+static VALUE midi_channel_message_data1(VALUE self);
+static VALUE midi_channel_message_data2(VALUE self);
 
 /* Utils */
 
@@ -524,26 +533,48 @@ track_play_midi_event(VALUE self, VALUE message)
     VALUE synth;
 
     Data_Get_Struct(self, MusicTrack, track);
-    __Require_noErr(err = MusicTrackGetSequence(*track, &seq), fail);
-    __Require_noErr(err = MusicSequenceGetAUGraph(seq, &graph), fail);
-    __Require_noErr(err = AUGraphGetNodeCount(graph, &count), fail);
+    __Require_noErr(err = MusicTrackGetSequence(*track, &seq), fail1);
+    __Require_noErr(err = MusicSequenceGetAUGraph(seq, &graph), fail2);
+    __Require_noErr(err = AUGraphGetNodeCount(graph, &count), fail3);
     synth = Data_Make_Struct(rb_cAudioUnit, AudioUnit, 0, 0, synthUnit);
     for ( i = 0; i < count; i++) {
-        __Require_noErr(err = AUGraphGetIndNode(graph, i, &node), fail);
-        __Require_noErr(err = AUGraphNodeInfo(graph, node, &desc, synthUnit), fail);
+        __Require_noErr(err = AUGraphGetIndNode(graph, i, &node), fail4);
+        __Require_noErr(err = AUGraphNodeInfo(graph, node, &desc, synthUnit), fail5);
         if (desc.componentType == kAudioUnitType_MusicDevice &&
             desc.componentSubType == kAudioUnitSubType_DLSSynth) break;
     }
     if ( i < count ) {
-        status = rb_iv_get(message, "@status");
-        data1 = rb_iv_get(message, "@data1");
-        data2 = rb_iv_get(message, "@data2");
+/*        status = rb_funcall(message, rb_intern("status"), 0);
+        data1 = rb_funcall(message, rb_intern("data1"), 0);
+        data2 = rb_funcall(message, rb_intern("data2"), 0);
+*/
+        if ( rb_obj_is_kind_of(message, rb_cMIDINoteMessage) == Qtrue ) {
+            status = FIX2UINT(midi_note_message_status(message));
+            data1 = FIX2UINT(midi_note_message_data1(message));
+            data2 = FIX2UINT(midi_note_message_data2(message));
+        }
+        else {
+            status = FIX2UINT(midi_channel_message_status(message));
+            data1 = FIX2UINT(midi_channel_message_data1(message));
+            data2 = FIX2UINT(midi_channel_message_data2(message));
+        }
+/*        printf("status: %08lx, data1: %08lx, data2: %08lx\n", status, data1, data2); debug */
         __Require_noErr(err = MusicDeviceMIDIEvent(*synthUnit,
                          status, data1, data2, 0/*sample offset*/),
                         fail);
         return synth;
     }
 
+fail1:
+    RAISE_OSSTATUS(err, "MusicTrackGetSequence()");
+fail2:
+    RAISE_OSSTATUS(err, "MusicSequenceGetAUGraph()");
+fail3:
+    RAISE_OSSTATUS(err, "AUGraphGetNodeCount()");
+fail4:
+    RAISE_OSSTATUS(err, "AUGraphGetIndNode()");
+fail5:
+    RAISE_OSSTATUS(err, "AUGraphNodeInfo()");
 fail:
     RAISE_OSSTATUS(err, "MusicDeviceMIDIEvent()");
 }
@@ -1034,6 +1065,33 @@ midi_note_message_from_const (MIDINoteMessage *msg)
     return rb_funcall(rb_cMIDINoteMessage, rb_intern("new"), 1, rb_opts);
 }
 
+static VALUE
+midi_note_message_status(VALUE self)
+{
+    VALUE cmd = ( rb_obj_is_instance_of(self, rb_cMIDINoteOnMessage) == Qtrue ) ? 0x90: 0x80;
+    return (UINT2NUM(cmd) | midi_note_message_channel(self));
+}
+
+static VALUE
+midi_note_message_data1(VALUE self)
+{
+    return midi_note_message_note(self);
+}
+
+static VALUE
+midi_note_message_data2(VALUE self)
+{
+    VALUE vel;
+    
+    if ( rb_obj_is_instance_of(self, rb_cMIDINoteOnMessage) == Qtrue ) {
+        vel = midi_note_message_velocity(self);
+    }
+    else {
+        vel = midi_note_message_release_velocity(self);
+    }
+    return vel;
+}
+
 /* MIDIChannelMessage */
 
 static void
@@ -1513,7 +1571,13 @@ Init_music_player ()
     rb_define_method(rb_cMIDINoteMessage, "velocity", midi_note_message_velocity, 0);
     rb_define_method(rb_cMIDINoteMessage, "release_velocity", midi_note_message_release_velocity, 0);
     rb_define_method(rb_cMIDINoteMessage, "duration", midi_note_message_duration, 0);
-    
+    rb_define_method(rb_cMIDINoteMessage, "status", midi_note_message_status, 0);
+    rb_define_method(rb_cMIDINoteMessage, "data1", midi_note_message_data1, 0);
+    rb_define_method(rb_cMIDINoteMessage, "data2", midi_note_message_data2, 0);
+
+    rb_cMIDINoteOnMessage = rb_define_class("MIDINoteOnMessage", rb_cMIDINoteMessage);
+    rb_cMIDINoteOffMessage = rb_define_class("MIDINoteOffMessage", rb_cMIDINoteMessage);
+
     /* AudioToolbox::MIDIChannelMessage */
     rb_cMIDIChannelMessage = rb_define_class_under(rb_mAudioToolbox, "MIDIChannelMessage", rb_cObject);
     rb_cMIDIKeyPressureMessage = rb_define_class_under(rb_mAudioToolbox, "MIDIKeyPressureMessage", rb_cMIDIChannelMessage);

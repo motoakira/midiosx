@@ -115,8 +115,9 @@ Defined in "music_player.c"
     def add(time, track)
       track.add_midi_note_message(time, self)
     end
+
   end
-  
+
   class MIDIChannelMessage
     def ==(msg)
       self.class == msg.class &&
@@ -144,8 +145,8 @@ Defined in "music_player.c"
         end
       end
   end
-  
-  class MIDIKeyPressureMessage < MIDIChannelMessage
+
+class MIDIKeyPressureMessage < MIDIChannelMessage
     alias :note :data1
     alias :pressure :data2
     
