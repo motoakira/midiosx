@@ -517,6 +517,12 @@ track_new (int argc, VALUE *argv, VALUE class)
     RAISE_OSSTATUS(err, "MusicSequenceNewTrack()");
 }
 
+static void
+audio_unit_free (AudioUnit *au)
+{
+    if (au) free(au);
+}
+
 static VALUE
 track_play_midi_event(VALUE self, VALUE message)
 {
@@ -536,7 +542,7 @@ track_play_midi_event(VALUE self, VALUE message)
     __Require_noErr(err = MusicTrackGetSequence(*track, &seq), fail1);
     __Require_noErr(err = MusicSequenceGetAUGraph(seq, &graph), fail2);
     __Require_noErr(err = AUGraphGetNodeCount(graph, &count), fail3);
-    synth = Data_Make_Struct(rb_cAudioUnit, AudioUnit, 0, 0, synthUnit);
+    synth = Data_Make_Struct(rb_cAudioUnit, AudioUnit, 0, audio_unit_free, synthUnit);
     for ( i = 0; i < count; i++) {
         __Require_noErr(err = AUGraphGetIndNode(graph, i, &node), fail4);
         __Require_noErr(err = AUGraphNodeInfo(graph, node, &desc, synthUnit), fail5);
