@@ -1,6 +1,6 @@
 $:.unshift File.join(File.dirname(__FILE__), '../ext/music_player')
 require 'thread'
-require 'music_player.bundle'
+require 'midiosx.bundle'
 
 module AudioToolbox
   class MusicSequence

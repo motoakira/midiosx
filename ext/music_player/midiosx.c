@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 Jeremy Voorhis <jvoorhis@gmail.com>
+ * Copyright (c) 2015 SHINDO Motoaki <motoakira@mac.com>
  */
 #define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 1
 #include <AssertMacros.h>
@@ -327,7 +327,6 @@ sequence_init (VALUE self)
     require_noerr( err = NewMusicSequence(seq), fail );
     rb_iv_set(self, "@tracks",
               rb_funcall(rb_cMusicTrackCollection, rb_intern("new"), 1, self));
-    
     return self;
     
     fail:
@@ -1491,7 +1490,7 @@ fail:
 /* Initialize extension */
 
 void
-Init_music_player ()
+Init_midiosx ()
 {
     /*
      * CoreMIDI

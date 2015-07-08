@@ -30,7 +30,7 @@ end
 
 task :test => :build # Always test the latest build.
 
-spec = eval open('music_player.gemspec').read
+spec = eval open('midiosx.gemspec').read
 Gem::PackageTask.new spec do |pkg| end
 
 task :default => :test

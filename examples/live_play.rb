@@ -1,4 +1,4 @@
-require 'music_player'
+require 'midiosx'
 
 class LivePlay
   include AudioToolbox

@@ -1,0 +1,10 @@
+Copyright (c) 2015 SHINDO Motoaki <motoakira@mac.com>
+
+MidiosX: Ruby bindings for OS X's high-quality music sequencing/live-play API
+
+MidiosX is a Ruby Extention Library that utilizes　MIDI functions built in Mac OS X.
+MidiosX plays the synthesizer built in Mac OS X as well as
+plays sequences via built in sequencer.
+
+Sequencing capabilities of MidiosX is originally implemented by
+Jeremy Voorhis <jvoorhis@gmail.com> in his "music_player" Extention Library.
